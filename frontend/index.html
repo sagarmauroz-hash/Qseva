@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>QueueLess</title>
+    <link rel="stylesheet" href="frontend\styles.css">
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="brand">Q<span>SEVA</span></div>
+        <div>● Live Queue</div>
+    </header>
+    <main class="container">
+        <section class="hero">
+            <p class="eyebrow">AKSHAYA QUEUE MANAGEMENT</p>
+            <h1>Your time is too valuable to wait.</h1>
+            <p class="lead">Take a digital token, leave the physical queue, and return when your turn is near.</p>
+        </section>
+        <section class="grid">
+            <div class="card">
+                <h2>Get a digital token</h2><label>Choose a service</label><select id="service"></select><button
+                    id="takeToken">Get My Token</button>
+                <div id="ticket" class="ticket hidden"></div>
+            </div>
+            <div class="card">
+                <h2>Admin demo</h2>
+                <p class="muted">Call the next person from a selected service.</p><select
+                    id="adminService"></select><button id="callNext" class="secondary">Call Next</button>
+                <div id="adminResult" class="result"></div>
+            </div>
+        </section>
+        <section class="card">
+            <div class="section-head">
+                <div>
+                    <h2>Live queue</h2>
+                    <p id="queueName" class="muted">Choose a service</p>
+                </div><button id="refresh" class="small">Refresh</button>
+            </div>
+            <div id="queue" class="queue"></div>
+        </section>
+        <section class="stats">
+            <div class="stat"><b id="waiting">0</b><span>Waiting</span></div>
+            <div class="stat"><b id="serving">0</b><span>Serving</span></div>
+            <div class="stat"><b id="completed">0</b><span>Completed</span></div>
+        </section>
+    </main>
+    <footer>QueueLess • Hackathon MVP</footer>
+    <script src="frontend\app.js"></script>
+</body>
+
+</html>

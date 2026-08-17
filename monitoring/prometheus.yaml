@@ -1,0 +1,6 @@
+# Example only; adapt to the cluster monitoring stack.
+scrape_configs:
+  - job_name: queueless
+    metrics_path: /metrics
+    static_configs:
+      - targets: [queueless:80]

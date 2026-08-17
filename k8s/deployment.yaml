@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: queueless, namespace: queueless}
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector: {matchLabels: {app: queueless}}
+  template:
+    metadata: {labels: {app: queueless}}
+    spec:
+      serviceAccountName: queueless
+      containers:
+        - name: app
+          image: ghcr.io/YOUR_GITHUB_USER/queueless:latest
+          imagePullPolicy: Always
+          ports: [{containerPort: 8000}]
+          envFrom: [{configMapRef: {name: queueless-config}}]
+          env:
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: queueless-secret, key: DATABASE_URL}}
+          resources:
+            requests: {cpu: "100m", memory: "128Mi"}
+            limits: {cpu: "500m", memory: "512Mi"}
+          startupProbe:
+            httpGet: {path: /api/health, port: 8000}
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: {path: /api/health, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /api/health, port: 8000}
+            initialDelaySeconds: 15
+            periodSeconds: 20
