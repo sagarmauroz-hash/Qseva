@@ -1,16 +1,54 @@
-name: CI/CD
+name: QueueLess CI/CD
 
 on:
   push:
     branches:
       - main
 
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
 env:
   IMAGE_NAME: ghcr.io/sagarmauroz-hash/qseva
   OPENSHIFT_NAMESPACE: sagarmauroz-dev
 
 jobs:
-  build-and-deploy:
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: PYTHONPATH=. pytest -q
+
+
+  build:
+    name: Build and Push Image
+    needs: test
+
+    if: github.event_name == 'push'
+
     runs-on: ubuntu-latest
 
     permissions:
@@ -18,117 +56,69 @@ jobs:
       packages: write
 
     steps:
-
-      # -----------------------------------------
-      # 1. Checkout source code
-      # -----------------------------------------
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # -----------------------------------------
-      # 2. Log in to GitHub Container Registry
-      # -----------------------------------------
-      - name: Log in to GHCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # -----------------------------------------
-      # 3. Build and push Docker image
-      # -----------------------------------------
-      - name: Build and push image
+      - name: Build and Push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # -----------------------------------------
-      # 4. Install OpenShift CLI
-      # -----------------------------------------
+
+  deploy:
+    name: Deploy to OpenShift
+    needs: build
+
+    if: github.event_name == 'push'
+
+    runs-on: ubuntu-latest
+
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install OpenShift CLI
         uses: redhat-actions/oc-installer@v1
 
-      # -----------------------------------------
-      # 5. Log in to OpenShift
-      # -----------------------------------------
       - name: Login to OpenShift
         run: |
-          oc login \
-            --server="${{ secrets.OPENSHIFT_SERVER }}" \
+          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
             --token="${{ secrets.OPENSHIFT_TOKEN }}" \
-            --insecure-skip-tls-verify=true
+            --insecure-skip-tls-verify=false
 
-      # -----------------------------------------
-      # 6. Select OpenShift project
-      # -----------------------------------------
-      - name: Select OpenShift project
+      - name: Select project
         run: |
           oc project "${{ env.OPENSHIFT_NAMESPACE }}"
 
-      # -----------------------------------------
-      # 7. Apply Kubernetes/OpenShift manifests
-      # -----------------------------------------
-      - name: Apply OpenShift manifests
+      - name: Apply configuration
         run: |
-          oc apply -f k8s/ \
-            -n "${{ env.OPENSHIFT_NAMESPACE }}"
+          oc apply -f k8s/configmap.yaml
+          oc apply -f k8s/rbac.yaml
+          oc apply -f k8s/secret.yaml
+          oc apply -f k8s/postgres.yaml
+          oc apply -f k8s/deployment.yaml
+          oc apply -f k8s/service.yaml
+          oc apply -f k8s/route.yaml
+          oc apply -f k8s/hpa.yaml
+          oc apply -f k8s/network-policy.yaml
 
-      # -----------------------------------------
-      # 8. Update QueueLess image
-      # -----------------------------------------
-      - name: Update QueueLess image
+      - name: Update image
         run: |
           oc set image deployment/queueless \
             queueless=${{ env.IMAGE_NAME }}:${{ github.sha }} \
             -n "${{ env.OPENSHIFT_NAMESPACE }}"
 
-      # -----------------------------------------
-      # 9. Show deployment status
-      # -----------------------------------------
-      # IMPORTANT:
-      # We intentionally DO NOT run:
-      #
-      # oc rollout status deployment/queueless
-      #
-      # This allows GitHub Actions to continue even
-      # if QueueLess Pods are not Ready yet.
-      # -----------------------------------------
-      - name: Show deployment status
-        run: |
-          echo "======================================"
-          echo "DEPLOYMENT"
-          echo "======================================"
-
-          oc get deployment queueless \
-            -n "${{ env.OPENSHIFT_NAMESPACE }}"
-
-          echo "======================================"
-          echo "PODS"
-          echo "======================================"
-
-          oc get pods \
-            -n "${{ env.OPENSHIFT_NAMESPACE }}" \
-            -l app=queueless \
-            -o wide
-
-          echo "======================================"
-          echo "POSTGRES PODS"
-          echo "======================================"
-
-          oc get pods \
-            -n "${{ env.OPENSHIFT_NAMESPACE }}" \
-            -l app=postgres \
-            -o wide
-
-      # -----------------------------------------
-      # 10. Deployment complete
-      # -----------------------------------------
-      - name: Deployment submitted
-        run: |
-          echo "OpenShift deployment has been submitted."
-          echo "Rollout status check has been intentionally bypassed."
+      
