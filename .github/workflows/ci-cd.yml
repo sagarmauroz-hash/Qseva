@@ -1,36 +1,127 @@
 name: QueueLess CI/CD
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+
   pull_request:
-    branches: [main]
+    branches:
+      - main
+
 permissions:
   contents: read
   packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/sagarmauroz-hash/queueless
+  OPENSHIFT_NAMESPACE: sagarmauroz
+
 jobs:
+
   test:
+    name: Test
     runs-on: ubuntu-latest
-    defaults: {run: {working-directory: backend}}
+
+    defaults:
+      run:
+        working-directory: backend
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with: {python-version: '3.12'}
-    - run: pip install -r requirements.txt
-    - run: PYTHONPATH=. pytest -q
-  build-and-push:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: PYTHONPATH=. pytest -q
+
+
+  build:
+    name: Build and Push Image
     needs: test
+
     if: github.event_name == 'push'
+
     runs-on: ubuntu-latest
-    permissions: {contents: read, packages: write}
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: ghcr.io/${{ github.repository_owner }}/queueless:latest
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+
+  deploy:
+    name: Deploy to OpenShift
+    needs: build
+
+    if: github.event_name == 'push'
+
+    runs-on: ubuntu-latest
+
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/oc-installer@v1
+
+      - name: Login to OpenShift
+        run: |
+          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
+            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
+            --insecure-skip-tls-verify=false
+
+      - name: Select project
+        run: |
+          oc project "${{ env.OPENSHIFT_NAMESPACE }}"
+
+      - name: Apply configuration
+        run: |
+          oc apply -f k8s/configmap.yaml
+          oc apply -f k8s/rbac.yaml
+          oc apply -f k8s/postgres.yaml
+          oc apply -f k8s/deployment.yaml
+          oc apply -f k8s/service.yaml
+          oc apply -f k8s/route.yaml
+          oc apply -f k8s/hpa.yaml
+          oc apply -f k8s/network-policy.yaml
+
+      - name: Update image
+        run: |
+          oc set image deployment/queueless \
+            queueless=${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -n "${{ env.OPENSHIFT_NAMESPACE }}"
+
+      - name: Wait for rollout
+        run: |
+          oc rollout status deployment/queueless \
+            -n "${{ env.OPENSHIFT_NAMESPACE }}" \
+            --timeout=180s

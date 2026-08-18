@@ -8,13 +8,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from prometheus_fastapi_instrumentator import Instrumentator
-from sqlalchemy import DateTime, ForeignKey, Integer, String, create_engine, func, select
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    create_engine,
+    func,
+    select,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 APP_NAME = os.getenv("APP_NAME", "QueueLess")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./queueless.db")
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
+engine_kwargs = {
+    "connect_args": connect_args,
+    "pool_pre_ping": True,
+}
+
+if not DATABASE_URL.startswith("sqlite"):
+    engine_kwargs.update({
+        "pool_size": 5,
+        "max_overflow": 5,
+        "pool_recycle": 1800,
+    })
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 class Base(DeclarativeBase):
@@ -28,7 +49,15 @@ class Service(Base):
     average_minutes: Mapped[int] = mapped_column(Integer, default=3)
 
 class Token(Base):
-    __tablename__ = "tokens"
+    _tablename_ = "tokens"
+
+    _table_args_ = (
+        UniqueConstraint(
+            "service_id",
+            "token_number",
+            name="uq_token_service_number"
+        ),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     token_number: Mapped[int] = mapped_column(Integer)
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"), index=True)
@@ -71,8 +100,19 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 @app.get("/api/health")
-def health():
-    return {"status": "ok", "service": APP_NAME}
+def health(db: Session = Depends(get_db)):
+    try:
+        db.execute(select(1))
+        return {
+            "status": "ok",
+            "service": APP_NAME,
+            "database": "ok"
+        }
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable"
+        )
 
 @app.get("/api/services")
 def services(db: Session = Depends(get_db)):

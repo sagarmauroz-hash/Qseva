@@ -1,6 +1,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
-metadata: {name: queueless-data, namespace: queueless}
+metadata:
+  name: postgres-pvc
+  namespace: sagarmauroz
 spec:
-  accessModes: [ReadWriteOnce]
-  resources: {requests: {storage: 2Gi}}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

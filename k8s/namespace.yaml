@@ -1,4 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: queueless
+  name: sagarmauroz
+  labels:
+    app.kubernetes.io/name: queueless
+    app.kubernetes.io/part-of: queueless

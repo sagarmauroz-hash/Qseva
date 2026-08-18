@@ -1,37 +1,98 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: queueless, namespace: queueless}
+metadata:
+  name: queueless
+  namespace: sagarmauroz
+  labels:
+    app: queueless
 spec:
   replicas: 3
+
   strategy:
     type: RollingUpdate
-    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
-  selector: {matchLabels: {app: queueless}}
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  minReadySeconds: 10
+
+  selector:
+    matchLabels:
+      app: queueless
+
   template:
-    metadata: {labels: {app: queueless}}
+    metadata:
+      labels:
+        app: queueless
     spec:
       serviceAccountName: queueless
+
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
+      terminationGracePeriodSeconds: 30
+
       containers:
-        - name: app
-          image: ghcr.io/YOUR_GITHUB_USER/queueless:latest
+        - name: queueless
+
+          image: ghcr.io/sagarmauroz-hash/queueless:latest
+
           imagePullPolicy: Always
-          ports: [{containerPort: 8000}]
-          envFrom: [{configMapRef: {name: queueless-config}}]
+
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: queueless-config
+
           env:
             - name: DATABASE_URL
-              valueFrom: {secretKeyRef: {name: queueless-secret, key: DATABASE_URL}}
+              valueFrom:
+                secretKeyRef:
+                  name: queueless-secret
+                  key: DATABASE_URL
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+
           resources:
-            requests: {cpu: "100m", memory: "128Mi"}
-            limits: {cpu: "500m", memory: "512Mi"}
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
           startupProbe:
-            httpGet: {path: /api/health, port: 8000}
+            httpGet:
+              path: /api/health
+              port: http
             failureThreshold: 30
             periodSeconds: 5
+            timeoutSeconds: 3
+
           readinessProbe:
-            httpGet: {path: /api/health, port: 8000}
+            httpGet:
+              path: /api/health
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
           livenessProbe:
-            httpGet: {path: /api/health, port: 8000}
-            initialDelaySeconds: 15
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 20
             periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
