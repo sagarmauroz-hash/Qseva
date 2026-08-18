@@ -49,7 +49,7 @@ class Service(Base):
     average_minutes: Mapped[int] = mapped_column(Integer, default=3)
 
 class Token(Base):
-    _tablename_ = "tokens"
+    __tablename__ = "tokens"
 
     _table_args_ = (
         UniqueConstraint(
