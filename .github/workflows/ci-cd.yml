@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/sagarmauroz-hash/Qseva
+  IMAGE_NAME: ghcr.io/sagarmauroz-hash/qseva
   OPENSHIFT_NAMESPACE: sagarmauroz-dev
 
 jobs:

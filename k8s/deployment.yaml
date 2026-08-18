@@ -36,7 +36,7 @@ spec:
       containers:
         - name: queueless
 
-          image: ghcr.io/sagarmauroz-hash/Qseva
+          image: ghcr.io/sagarmauroz-hash/qseva
 
           imagePullPolicy: Always
 
