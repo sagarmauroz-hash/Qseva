@@ -95,7 +95,7 @@ jobs:
 
       - name: Login to OpenShift
         run: |
-          oc login "${{ --token=sha256~fJCXVkf8UwZPdUelfXETFhhS1s-Hng5Zt-oJfSeXp14 --server=https://api.rm3.7wse.p1.openshiftapps.com:6443  }}" \
+          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
             --token="${{ secrets.OPENSHIFT_TOKEN }}" \
             --insecure-skip-tls-verify=false
 
