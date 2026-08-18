@@ -2,7 +2,7 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: queueless-serverless
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
 spec:
   template:
     metadata:
@@ -12,7 +12,7 @@ spec:
         autoscaling.knative.dev/target: "10"
     spec:
       containers:
-        - image: ghcr.io/sagarmauroz/queueless-serverless:latest
+        - image: ghcr.io/sagarmauroz-hash/queueless-serverless:latest
           ports:
             - containerPort: 8080
           resources:

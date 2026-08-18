@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: queueless-config
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
 data:
   APP_NAME: "QueueLess"
   CORS_ORIGINS: "*"

@@ -2,14 +2,14 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: queueless
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: queueless-read-config
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
 rules:
   - apiGroups:
       - ""
@@ -23,11 +23,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: queueless-read-config
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
 subjects:
   - kind: ServiceAccount
     name: queueless
-    namespace: sagarmauroz
+    namespace: sagarmauroz-dev
 roleRef:
   kind: Role
   name: queueless-read-config

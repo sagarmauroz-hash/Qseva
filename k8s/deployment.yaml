@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: queueless
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
   labels:
     app: queueless
 spec:
@@ -36,7 +36,7 @@ spec:
       containers:
         - name: queueless
 
-          image: ghcr.io/sagarmauroz-hash/queueless:latest
+          image: ghcr.io/sagarmauroz-hash/qseva:latest
 
           imagePullPolicy: Always
 

@@ -2,7 +2,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: queueless
-  namespace: sagarmauroz
+  namespace: sagarmauroz-dev
   annotations:
     haproxy.router.openshift.io/timeout: 30s
 spec:
