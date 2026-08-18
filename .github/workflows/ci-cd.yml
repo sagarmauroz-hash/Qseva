@@ -107,6 +107,7 @@ jobs:
         run: |
           oc apply -f k8s/configmap.yaml
           oc apply -f k8s/rbac.yaml
+          oc apply -f k8s/secret.yaml
           oc apply -f k8s/postgres.yaml
           oc apply -f k8s/deployment.yaml
           oc apply -f k8s/service.yaml
