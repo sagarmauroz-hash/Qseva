@@ -1,3 +1,104 @@
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: postgres
+#   namespace: sagarmauroz-dev
+#   labels:
+#     app: postgres
+# spec:
+#   selector:
+#     app: postgres
+#   ports:
+#     - port: 5432
+#       targetPort: 5432
+#   type: ClusterIP
+
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: postgres
+#   namespace: sagarmauroz-dev
+# spec:
+#   replicas: 1
+#   strategy:
+#     type: Recreate
+#   selector:
+#     matchLabels:
+#       app: postgres
+#   template:
+#     metadata:
+#       labels:
+#         app: postgres
+#     spec:
+#       containers:
+#         - name: postgres
+#           image: postgres:17-alpine
+#           ports:
+#             - containerPort: 5432
+#           env:
+#             - name: POSTGRES_DB
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: queueless-secret
+#                   key: POSTGRES_DB
+#             - name: POSTGRES_USER
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: queueless-secret
+#                   key: POSTGRES_USER
+#             - name: POSTGRES_PASSWORD
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: queueless-secret
+#                   key: POSTGRES_PASSWORD
+#             - name: PGDATA
+#               value: /var/lib/postgresql/data/db
+#           volumeMounts:
+#             - name: postgres-storage
+#               mountPath: /var/lib/postgresql/data/db
+#           resources:
+#             requests:
+#               cpu: "100m"
+#               memory: "256Mi"
+#             limits:
+#               cpu: "500m"
+#               memory: "512Mi"
+#           readinessProbe:
+#             exec:
+#               command:
+#                 - sh
+#                 - -c
+#                 - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+#             initialDelaySeconds: 10
+#             periodSeconds: 10
+#           livenessProbe:
+#             exec:
+#               command:
+#                 - sh
+#                 - -c
+#                 - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+#             initialDelaySeconds: 30
+#             periodSeconds: 20
+#       volumes:
+#         - name: postgres-storage
+#           persistentVolumeClaim:
+#             claimName: postgres-pvc
+
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: postgres-pvc
+#   namespace: sagarmauroz-dev
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 2Gi
+
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -21,42 +122,59 @@ metadata:
   namespace: sagarmauroz-dev
 spec:
   replicas: 1
+
   strategy:
     type: Recreate
+
   selector:
     matchLabels:
       app: postgres
+
   template:
     metadata:
       labels:
         app: postgres
+
     spec:
       containers:
         - name: postgres
           image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
+
           ports:
             - containerPort: 5432
+              protocol: TCP
+
           env:
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
                   name: queueless-secret
                   key: POSTGRES_DB
+
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: queueless-secret
                   key: POSTGRES_USER
+
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: queueless-secret
                   key: POSTGRES_PASSWORD
+
+            # IMPORTANT:
+            # The PVC is mounted at /var/lib/postgresql/data,
+            # while PostgreSQL stores its actual database cluster
+            # in the db subdirectory.
             - name: PGDATA
               value: /var/lib/postgresql/data/db
+
           volumeMounts:
             - name: postgres-storage
-              mountPath: /var/lib/postgresql/data/db
+              mountPath: /var/lib/postgresql/data
+
           resources:
             requests:
               cpu: "100m"
@@ -64,6 +182,7 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+
           readinessProbe:
             exec:
               command:
@@ -72,6 +191,9 @@ spec:
                 - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
           livenessProbe:
             exec:
               command:
@@ -80,6 +202,9 @@ spec:
                 - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
             initialDelaySeconds: 30
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+
       volumes:
         - name: postgres-storage
           persistentVolumeClaim:
@@ -94,6 +219,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+
   resources:
     requests:
       storage: 2Gi
