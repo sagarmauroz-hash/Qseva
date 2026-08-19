@@ -142,7 +142,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan)
-frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
+frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
 app.mount("/frontend", StaticFiles(directory=str(frontend_dir)), name="frontend")
 origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
