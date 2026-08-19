@@ -22,6 +22,7 @@ spec:
           port: 8000
 
   egress:
+    # PostgreSQL access.
     - to:
         - podSelector:
             matchLabels:
@@ -29,6 +30,20 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+
+    # Kubernetes DNS is required to resolve the postgres Service name.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+          podSelector:
+            matchLabels:
+              dns.operator.openshift.io/daemonset-dns: default
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
 
 ---
 apiVersion: networking.k8s.io/v1

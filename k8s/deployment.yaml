@@ -15,6 +15,7 @@ spec:
       maxSurge: 1
 
   minReadySeconds: 10
+  progressDeadlineSeconds: 300
 
   selector:
     matchLabels:
@@ -35,9 +36,7 @@ spec:
 
       containers:
         - name: queueless
-
           image: ghcr.io/sagarmauroz-hash/qseva:latest
-
           imagePullPolicy: Always
 
           ports:
@@ -55,6 +54,10 @@ spec:
                 secretKeyRef:
                   name: queueless-secret
                   key: DATABASE_URL
+            - name: DB_STARTUP_ATTEMPTS
+              value: "20"
+            - name: DB_STARTUP_DELAY_SECONDS
+              value: "3"
 
           securityContext:
             allowPrivilegeEscalation: false
@@ -75,7 +78,7 @@ spec:
             httpGet:
               path: /api/health
               port: http
-            failureThreshold: 30
+            failureThreshold: 36
             periodSeconds: 5
             timeoutSeconds: 3
 
@@ -92,7 +95,7 @@ spec:
             httpGet:
               path: /api/health
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 3
             failureThreshold: 3

@@ -41,10 +41,10 @@ Open `http://localhost:8000`.
 - Swagger: `/docs`
 
 ## Kubernetes/OpenShift
-Update the image in `k8s/deployment.yaml`, then apply the manifests. The set includes deployment replicas, service/load balancing, HPA, ConfigMap, Secret template, PVC, NetworkPolicy, RBAC, probes and rolling-update settings.
+The OpenShift workflow validates the manifests, applies the PVC and PostgreSQL first, applies the NetworkPolicies, updates the QueueLess image by commit SHA, waits for PostgreSQL, verifies the QueueLess rollout, and prints pod/events diagnostics if rollout fails. Kubernetes DNS egress is explicitly allowed so the `postgres` Service name can resolve.
 
 ## CI/CD
-GitHub Actions runs tests and builds/pushes the container image. Add cluster deployment steps after you know the hackathon cluster's authentication method. Never commit real credentials.
+GitHub Actions runs tests, builds/pushes both application images, deploys the main application to OpenShift, and verifies the rollout. Keep real cluster credentials in GitHub Actions secrets. The included `k8s/secret.yaml` retains the existing development credentials so it does not unexpectedly rotate the live PostgreSQL password; replace this with an external secret mechanism for production.
 
 ## Serverless
 `serverless/function.py` is a platform-neutral event-driven function example. Deploy/adapt it to OpenShift Serverless/Knative or the platform provided by the hackathon.

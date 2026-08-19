@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
@@ -18,15 +17,12 @@ env:
   OPENSHIFT_NAMESPACE: sagarmauroz-dev
 
 jobs:
-
   test:
     name: Test
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: backend
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,19 +38,14 @@ jobs:
       - name: Run tests
         run: PYTHONPATH=. pytest -q
 
-
   build:
     name: Build and Push Image
     needs: test
-
     if: github.event_name == 'push'
-
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,17 +66,41 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+  serverless-build:
+    name: Build and Push Serverless Image
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Serverless Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: serverless/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/sagarmauroz-hash/qseva-serverless:latest
+            ghcr.io/sagarmauroz-hash/qseva-serverless:${{ github.sha }}
 
   deploy:
     name: Deploy to OpenShift
     needs: build
-
     if: github.event_name == 'push'
-
     runs-on: ubuntu-latest
-
     environment: production
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,20 +115,37 @@ jobs:
             --insecure-skip-tls-verify=false
 
       - name: Select project
+        run: oc project "${{ env.OPENSHIFT_NAMESPACE }}"
+
+      - name: Validate manifests
         run: |
-          oc project "${{ env.OPENSHIFT_NAMESPACE }}"
+          for file in k8s/configmap.yaml k8s/rbac.yaml k8s/secret.yaml k8s/pvc.yaml k8s/postgres.yaml k8s/deployment.yaml k8s/service.yaml k8s/route.yaml k8s/hpa.yaml k8s/network-policy.yaml; do
+            oc apply --dry-run=server -f "$file"
+          done
 
       - name: Apply configuration
         run: |
           oc apply -f k8s/configmap.yaml
           oc apply -f k8s/rbac.yaml
           oc apply -f k8s/secret.yaml
+          oc apply -f k8s/pvc.yaml
           oc apply -f k8s/postgres.yaml
+          oc apply -f k8s/network-policy.yaml
           oc apply -f k8s/deployment.yaml
           oc apply -f k8s/service.yaml
           oc apply -f k8s/route.yaml
           oc apply -f k8s/hpa.yaml
-          oc apply -f k8s/network-policy.yaml
+          if oc get crd servicemonitors.monitoring.coreos.com >/dev/null 2>&1; then
+            oc apply -f k8s/servicemonitor.yaml
+          else
+            echo "ServiceMonitor CRD is not installed; skipping ServiceMonitor."
+          fi
+
+      - name: Wait for PostgreSQL
+        run: |
+          oc rollout status deployment/postgres \
+            -n "${{ env.OPENSHIFT_NAMESPACE }}" \
+            --timeout=180s
 
       - name: Update image
         run: |
@@ -121,4 +153,29 @@ jobs:
             queueless=${{ env.IMAGE_NAME }}:${{ github.sha }} \
             -n "${{ env.OPENSHIFT_NAMESPACE }}"
 
-      
+      - name: Verify QueueLess rollout
+        run: |
+          set -e
+          if ! oc rollout status deployment/queueless \
+              -n "${{ env.OPENSHIFT_NAMESPACE }}" \
+              --timeout=300s; then
+            echo "QueueLess rollout failed. Collecting diagnostics..."
+            oc get deployment/queueless -n "${{ env.OPENSHIFT_NAMESPACE }}" -o wide || true
+            oc get rs -n "${{ env.OPENSHIFT_NAMESPACE }}" -l app=queueless -o wide || true
+            oc get pods -n "${{ env.OPENSHIFT_NAMESPACE }}" -l app=queueless -o wide || true
+            oc describe deployment/queueless -n "${{ env.OPENSHIFT_NAMESPACE }}" || true
+            oc get events -n "${{ env.OPENSHIFT_NAMESPACE }}" --sort-by=.lastTimestamp | tail -100 || true
+            for pod in $(oc get pods -n "${{ env.OPENSHIFT_NAMESPACE }}" -l app=queueless -o name); do
+              echo "===== $pod ====="
+              oc describe "$pod" -n "${{ env.OPENSHIFT_NAMESPACE }}" || true
+              oc logs "$pod" -n "${{ env.OPENSHIFT_NAMESPACE }}" --all-containers=true --tail=200 || true
+              oc logs "$pod" -n "${{ env.OPENSHIFT_NAMESPACE }}" --all-containers=true --previous --tail=200 || true
+            done
+            exit 1
+          fi
+
+      - name: Verify application resources
+        run: |
+          oc get pods -n "${{ env.OPENSHIFT_NAMESPACE }}" -l app=queueless -o wide
+          oc get svc queueless -n "${{ env.OPENSHIFT_NAMESPACE }}"
+          oc get route queueless -n "${{ env.OPENSHIFT_NAMESPACE }}"

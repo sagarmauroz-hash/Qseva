@@ -5,21 +5,18 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY backend/requirements.txt .
-
+COPY serverless/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/app ./app
-COPY frontend ./frontend
+COPY serverless/function.py ./function.py
 
-EXPOSE 8000
+EXPOSE 8080
 
 RUN useradd --create-home appuser \
     && chown -R appuser:appuser /app
-
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health').read()" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/').read()" || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "function:app", "--host", "0.0.0.0", "--port", "8080"]

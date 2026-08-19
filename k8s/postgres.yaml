@@ -108,17 +108,3 @@ spec:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: postgres-pvc
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-pvc
-  namespace: sagarmauroz-dev
-spec:
-  accessModes:
-    - ReadWriteOnce
-
-  resources:
-    requests:
-      storage: 2Gi
